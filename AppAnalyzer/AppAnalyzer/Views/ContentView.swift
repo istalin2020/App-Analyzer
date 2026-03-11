@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var viewModel = AppOrganizerViewModel()
+    @StateObject private var viewModel = AppAnalyzerViewModel()
 
     var body: some View {
         Group {

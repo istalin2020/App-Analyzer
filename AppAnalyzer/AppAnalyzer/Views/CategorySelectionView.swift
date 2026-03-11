@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CategorySelectionView: View {
-    @ObservedObject var viewModel: AppOrganizerViewModel
+    @ObservedObject var viewModel: AppAnalyzerViewModel
     @State private var animateItems = false
 
     private let columns = [

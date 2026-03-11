@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ScanningView: View {
-    @ObservedObject var viewModel: AppOrganizerViewModel
+    @ObservedObject var viewModel: AppAnalyzerViewModel
     @State private var rotationAngle: Double = 0
     @State private var pulseScale: CGFloat = 1.0
     @State private var scanLineOffset: CGFloat = -100

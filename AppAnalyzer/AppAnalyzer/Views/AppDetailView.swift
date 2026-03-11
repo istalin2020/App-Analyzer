@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AppDetailView: View {
     let app: AppInfo
-    @ObservedObject var viewModel: AppOrganizerViewModel
+    @ObservedObject var viewModel: AppAnalyzerViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showDeleteAlert = false
     @State private var animateIn = false

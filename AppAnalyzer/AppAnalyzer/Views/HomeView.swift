@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct HomeView: View {
-    @ObservedObject var viewModel: AppOrganizerViewModel
+    @ObservedObject var viewModel: AppAnalyzerViewModel
     @State private var animateShield = false
     @State private var animatePulse = false
     @State private var showFeatures = false
@@ -44,7 +44,7 @@ struct HomeView: View {
                         Image(systemName: "shield.checkered")
                             .font(.title2)
                             .foregroundStyle(.blue)
-                        Text("App Organizer")
+                        Text("App Analyzer")
                             .font(.title2.bold())
                     }
                 }

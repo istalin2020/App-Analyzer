@@ -4,7 +4,7 @@ import Combine
 
 /// Main ViewModel coordinating the entire app flow
 @MainActor
-final class AppOrganizerViewModel: ObservableObject {
+final class AppAnalyzerViewModel: ObservableObject {
 
     // MARK: - Published State
 

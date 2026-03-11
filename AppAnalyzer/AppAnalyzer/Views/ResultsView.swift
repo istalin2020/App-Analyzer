@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ResultsView: View {
-    @ObservedObject var viewModel: AppOrganizerViewModel
+    @ObservedObject var viewModel: AppAnalyzerViewModel
     @State private var showSortOptions = false
     @State private var viewMode: ViewMode = .category
     @State private var animateCards = false

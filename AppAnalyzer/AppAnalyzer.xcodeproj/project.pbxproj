@@ -7,17 +7,17 @@
 	objects = {
 
 /* Begin PBXGroup section */
-		00000000000000000000001 /* AppOrganizer */ = {
+		00000000000000000000001 /* AppAnalyzer */ = {
 			isa = PBXGroup;
 			children = (
 			);
-			path = AppOrganizer;
+			path = AppAnalyzer;
 			sourceTree = "<group>";
 		};
 		00000000000000000000002 /* Root */ = {
 			isa = PBXGroup;
 			children = (
-				00000000000000000000001 /* AppOrganizer */,
+				00000000000000000000001 /* AppAnalyzer */,
 			);
 			sourceTree = "<group>";
 		};
@@ -31,7 +31,7 @@
 				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1500;
 			};
-			buildConfigurationList = 00000000000000000000010 /* Build configuration list for PBXProject "AppOrganizer" */;
+			buildConfigurationList = 00000000000000000000010 /* Build configuration list for PBXProject "AppAnalyzer" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -60,7 +60,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = AppOrganizer/Info.plist;
+				INFOPLIST_FILE = AppAnalyzer/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.apporganizer.app;
@@ -82,7 +82,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = AppOrganizer/Info.plist;
+				INFOPLIST_FILE = AppAnalyzer/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.apporganizer.app;
@@ -96,7 +96,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		00000000000000000000010 /* Build configuration list for PBXProject "AppOrganizer" */ = {
+		00000000000000000000010 /* Build configuration list for PBXProject "AppAnalyzer" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				00000000000000000000011 /* Debug */,

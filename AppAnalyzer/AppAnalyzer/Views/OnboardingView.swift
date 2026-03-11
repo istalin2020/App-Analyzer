@@ -1,12 +1,12 @@
 import SwiftUI
 
 struct OnboardingView: View {
-    @ObservedObject var viewModel: AppOrganizerViewModel
+    @ObservedObject var viewModel: AppAnalyzerViewModel
     @State private var currentPage = 0
     @State private var animateContent = false
 
     private let pages: [(icon: String, title: String, description: String, color: Color)] = [
-        ("shield.checkered", "Welcome to\nApp Organizer",
+        ("shield.checkered", "Welcome to\nApp Analyzer",
          "Your smart companion for keeping your iPhone clean, secure, and organized.",
          .blue),
         ("magnifyingglass.circle.fill", "Smart App Scanner",
