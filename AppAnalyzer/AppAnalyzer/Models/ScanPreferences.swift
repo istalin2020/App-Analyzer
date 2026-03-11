@@ -12,7 +12,7 @@ struct ScanPreferences: Codable {
 
     static var `default`: ScanPreferences {
         ScanPreferences(
-            selectedCategories: Set(AppCategory.allCases),
+            selectedCategories: [],
             includeSystemApps: false,
             minimumRatingThreshold: 3.0,
             checkForUpdates: true,
