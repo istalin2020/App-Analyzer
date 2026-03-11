@@ -108,6 +108,7 @@ struct AppInfo: Identifiable, Codable, Equatable {
     let popularityScore: Int // 1-100
     let hasInAppPurchases: Bool
     let privacyPermissions: [String]
+    let urlScheme: String? // URL scheme used to detect if app is installed
 
     var isFlagged: Bool {
         !flagReasons.isEmpty

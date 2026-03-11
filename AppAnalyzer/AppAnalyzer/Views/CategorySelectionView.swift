@@ -218,17 +218,17 @@ struct CategoryCard: View {
             VStack(spacing: 8) {
                 ZStack {
                     Circle()
-                        .fill(isSelected ? category.color.opacity(0.2) : Color(.tertiarySystemBackground))
+                        .fill(isSelected ? category.color.opacity(0.3) : Color(.systemGray5))
                         .frame(width: 44, height: 44)
 
                     Image(systemName: category.icon)
                         .font(.system(size: 20))
-                        .foregroundStyle(isSelected ? category.color : .secondary)
+                        .foregroundStyle(isSelected ? category.color : Color(.systemGray3))
                 }
 
                 Text(category.rawValue)
                     .font(.caption2.bold())
-                    .foregroundStyle(isSelected ? .primary : .secondary)
+                    .foregroundStyle(isSelected ? .white : Color(.systemGray2))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
@@ -236,13 +236,13 @@ struct CategoryCard: View {
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(isSelected ? category.color.opacity(0.08) : Color(.secondarySystemBackground))
+                    .fill(isSelected ? category.color.opacity(0.15) : Color(.systemGray6))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(isSelected ? category.color.opacity(0.4) : Color.clear, lineWidth: 2)
+                    .strokeBorder(isSelected ? category.color : Color(.systemGray5), lineWidth: isSelected ? 2.5 : 1)
             )
-            .scaleEffect(isSelected ? 1.02 : 1.0)
+            .scaleEffect(isSelected ? 1.03 : 1.0)
         }
         .buttonStyle(.plain)
     }
