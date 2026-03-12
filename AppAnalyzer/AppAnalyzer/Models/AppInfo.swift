@@ -97,6 +97,8 @@ enum FlagReason: String, Codable, Identifiable {
     case knownVulnerabilities = "Known Vulnerabilities"
     case notUsedRecently = "Not Used in 12+ Months"
     case rarelyUsed = "Rarely Used"
+    case lowestRatedInCategory = "Lowest Rated in Category"
+    case offloadedUnused = "Offloaded & Unused"
 
     var id: String { rawValue }
 
@@ -114,6 +116,8 @@ enum FlagReason: String, Codable, Identifiable {
         case .knownVulnerabilities: return "ladybug.fill"
         case .notUsedRecently: return "hourglass.bottomhalf.filled"
         case .rarelyUsed: return "moon.zzz.fill"
+        case .lowestRatedInCategory: return "arrow.down.circle.fill"
+        case .offloadedUnused: return "icloud.slash.fill"
         }
     }
 
@@ -131,6 +135,8 @@ enum FlagReason: String, Codable, Identifiable {
         case .knownVulnerabilities: return .red
         case .notUsedRecently: return .indigo
         case .rarelyUsed: return .purple
+        case .lowestRatedInCategory: return .orange
+        case .offloadedUnused: return .gray
         }
     }
 }
@@ -156,6 +162,9 @@ struct AppInfo: Identifiable, Codable, Equatable {
     let urlScheme: String? // URL scheme used to detect if app is installed
     var lastUsedDate: Date? = nil // Estimated last usage date
     var deletionRecommendation: DeletionRecommendation = .keep // Computed by analyzer
+    var isOffloaded: Bool = false // App data removed but still on device
+    var categoryRank: Int? = nil // Rank within category by rating (1 = best)
+    var betterAlternatives: [String] = [] // Names of higher-rated apps in same category
 
     var isFlagged: Bool {
         !flagReasons.isEmpty
@@ -183,9 +192,9 @@ struct AppInfo: Identifiable, Codable, Equatable {
     var ratingStars: String {
         let fullStars = Int(appStoreRating)
         let hasHalf = appStoreRating - Double(fullStars) >= 0.5
-        var result = String(repeating: "★", count: fullStars)
-        if hasHalf { result += "½" }
-        result += String(repeating: "☆", count: 5 - fullStars - (hasHalf ? 1 : 0))
+        var result = String(repeating: "\u{2605}", count: fullStars)
+        if hasHalf { result += "\u{00BD}" }
+        result += String(repeating: "\u{2606}", count: 5 - fullStars - (hasHalf ? 1 : 0))
         return result
     }
 
@@ -194,6 +203,11 @@ struct AppInfo: Identifiable, Codable, Equatable {
             return String(format: "%.1f GB", sizeInMB / 1024)
         }
         return String(format: "%.0f MB", sizeInMB)
+    }
+
+    var categoryRankDescription: String? {
+        guard let rank = categoryRank else { return nil }
+        return "#\(rank) in \(category.rawValue)"
     }
 
     static func == (lhs: AppInfo, rhs: AppInfo) -> Bool {
@@ -209,6 +223,7 @@ struct ScanSummary {
     let outdatedApps: Int
     let unusedApps: Int
     let suggestedDeletions: Int
+    let offloadedApps: Int
     let potentialSpaceSaved: Double
     let categoryCounts: [AppCategory: Int]
 

@@ -45,6 +45,13 @@ final class AppAnalyzerViewModel: ObservableObject {
             apps.sort { $0.securityRisk > $1.securityRisk }
         case .deletionRec:
             apps.sort { $0.deletionRecommendation > $1.deletionRecommendation }
+        case .categoryRank:
+            apps.sort {
+                let a = $0.categoryRank ?? Int.max
+                let b = $1.categoryRank ?? Int.max
+                if $0.category == $1.category { return a > b } // Worst rank first within category
+                return $0.category.rawValue < $1.category.rawValue
+            }
         case .appName:
             apps.sort { $0.name < $1.name }
         case .rating:
@@ -186,6 +193,7 @@ enum AppScreen {
 enum SortOption: String, CaseIterable {
     case riskLevel = "Risk Level"
     case deletionRec = "Deletion Rec."
+    case categoryRank = "Category Rank"
     case appName = "App Name"
     case rating = "Rating"
     case size = "Size"
@@ -197,6 +205,7 @@ enum SortOption: String, CaseIterable {
         switch self {
         case .riskLevel: return "shield.fill"
         case .deletionRec: return "trash.circle.fill"
+        case .categoryRank: return "list.number"
         case .appName: return "textformat"
         case .rating: return "star.fill"
         case .size: return "externaldrive.fill"

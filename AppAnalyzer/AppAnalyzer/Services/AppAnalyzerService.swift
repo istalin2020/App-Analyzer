@@ -50,9 +50,17 @@ final class AppAnalyzerService: ObservableObject {
         // Step 3: DYNAMIC ANALYSIS - evaluate every app
         for i in filteredApps.indices {
             filteredApps[i] = analyzeApp(filteredApps[i], preferences: preferences)
-            scanProgress = 0.55 + (Double(i + 1) / Double(max(filteredApps.count, 1))) * 0.35
+            scanProgress = 0.55 + (Double(i + 1) / Double(max(filteredApps.count, 1))) * 0.25
             try? await Task.sleep(nanoseconds: 60_000_000)
         }
+        scanProgress = 0.82
+
+        // Step 3b: Category ranking & better alternatives (cross-app analysis)
+        filteredApps = assignCategoryRankings(filteredApps)
+        scanProgress = 0.88
+
+        // Step 3c: Simulate offloaded apps
+        filteredApps = simulateOffloadedApps(filteredApps)
         scanProgress = 0.92
 
         // Sort: flagged apps first (by risk descending), then safe apps
@@ -205,6 +213,59 @@ final class AppAnalyzerService: ObservableObject {
         return calendar.date(byAdding: .day, value: -Int.random(in: 14...120), to: now)
     }
 
+    /// Assigns category rankings and identifies better alternatives across all apps
+    private func assignCategoryRankings(_ apps: [AppInfo]) -> [AppInfo] {
+        var result = apps
+
+        // Group by category
+        let grouped = Dictionary(grouping: result.indices, by: { result[$0].category })
+
+        for (_, indices) in grouped {
+            // Sort indices by rating descending
+            let sorted = indices.sorted { result[$0].appStoreRating > result[$1].appStoreRating }
+
+            for (rank, idx) in sorted.enumerated() {
+                result[idx].categoryRank = rank + 1
+
+                // If this is the lowest-rated in a category with 2+ apps, flag it
+                if sorted.count >= 2 && rank == sorted.count - 1 {
+                    if !result[idx].flagReasons.contains(.lowestRatedInCategory) {
+                        result[idx].flagReasons.append(.lowestRatedInCategory)
+                        // Recompute risk and deletion recommendation with new flag
+                        result[idx].securityRisk = computeRiskLevel(reasons: result[idx].flagReasons, app: result[idx])
+                        result[idx].deletionRecommendation = computeDeletionRecommendation(reasons: result[idx].flagReasons, app: result[idx])
+                    }
+                }
+
+                // Identify better alternatives (higher-rated apps in same category)
+                let betterIndices = sorted.prefix(rank)
+                result[idx].betterAlternatives = betterIndices.map { result[$0].name }
+            }
+        }
+
+        return result
+    }
+
+    /// Simulates which apps are offloaded (data removed but still on device)
+    private func simulateOffloadedApps(_ apps: [AppInfo]) -> [AppInfo] {
+        var result = apps
+        for i in result.indices {
+            // Simulate: low popularity + old + large = likely offloaded
+            if !result[i].isSystemApp &&
+               result[i].popularityScore < 25 &&
+               result[i].daysSinceUpdate > 365 &&
+               result[i].sizeInMB > 100 {
+                result[i].isOffloaded = true
+                if !result[i].flagReasons.contains(.offloadedUnused) {
+                    result[i].flagReasons.append(.offloadedUnused)
+                    result[i].securityRisk = computeRiskLevel(reasons: result[i].flagReasons, app: result[i])
+                    result[i].deletionRecommendation = computeDeletionRecommendation(reasons: result[i].flagReasons, app: result[i])
+                }
+            }
+        }
+        return result
+    }
+
     /// Computes a deletion recommendation based on flag reasons and app attributes
     private func computeDeletionRecommendation(reasons: [FlagReason], app: AppInfo) -> DeletionRecommendation {
         if reasons.isEmpty { return .keep }
@@ -225,7 +286,14 @@ final class AppAnalyzerService: ObservableObject {
             case .lowPopularity: score += 1
             case .highStorageUsage: score += 1
             case .duplicateApp: score += 2
+            case .lowestRatedInCategory: score += 2
+            case .offloadedUnused: score += 3
             }
+        }
+
+        // Offloaded + unused = strongly recommend deletion
+        if reasons.contains(.offloadedUnused) && reasons.contains(.notUsedRecently) {
+            score += 2
         }
 
         // Unused + security issues = strongly recommend
@@ -261,6 +329,8 @@ final class AppAnalyzerService: ObservableObject {
             case .duplicateApp: score += 1
             case .notUsedRecently: score += 1
             case .rarelyUsed: score += 1
+            case .lowestRatedInCategory: score += 1
+            case .offloadedUnused: score += 1
             }
         }
 
@@ -320,6 +390,7 @@ final class AppAnalyzerService: ObservableObject {
                 outdatedApps: flaggedApps.filter { $0.daysSinceUpdate > 365 }.count,
                 unusedApps: installedApps.filter { $0.flagReasons.contains(.notUsedRecently) || $0.flagReasons.contains(.rarelyUsed) }.count,
                 suggestedDeletions: installedApps.filter { $0.deletionRecommendation >= .suggested }.count,
+                offloadedApps: installedApps.filter { $0.isOffloaded }.count,
                 potentialSpaceSaved: flaggedApps.reduce(0) { $0 + $1.sizeInMB },
                 categoryCounts: Dictionary(grouping: flaggedApps, by: \.category).mapValues(\.count)
             )
@@ -344,6 +415,7 @@ final class AppAnalyzerService: ObservableObject {
             outdatedApps: flagged.filter { $0.daysSinceUpdate > 365 }.count,
             unusedApps: allApps.filter { $0.flagReasons.contains(.notUsedRecently) || $0.flagReasons.contains(.rarelyUsed) }.count,
             suggestedDeletions: allApps.filter { $0.deletionRecommendation >= .suggested }.count,
+            offloadedApps: allApps.filter { $0.isOffloaded }.count,
             potentialSpaceSaved: flagged.reduce(0) { $0 + $1.sizeInMB },
             categoryCounts: Dictionary(grouping: flagged, by: \.category).mapValues(\.count)
         )

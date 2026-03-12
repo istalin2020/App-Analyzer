@@ -29,6 +29,11 @@ struct AppDetailView: View {
                     // App Details
                     detailsSection
 
+                    // Better Alternatives (if any)
+                    if !app.betterAlternatives.isEmpty {
+                        betterAlternativesSection
+                    }
+
                     // Recommendation
                     recommendationSection
 
@@ -90,13 +95,35 @@ struct AppDetailView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            Text(app.category.rawValue)
-                .font(.caption)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(app.category.color.opacity(0.1))
-                .foregroundStyle(app.category.color)
-                .clipShape(Capsule())
+            HStack(spacing: 8) {
+                Text(app.category.rawValue)
+                    .font(.caption)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .background(app.category.color.opacity(0.1))
+                    .foregroundStyle(app.category.color)
+                    .clipShape(Capsule())
+
+                if let rankDesc = app.categoryRankDescription {
+                    Text(rankDesc)
+                        .font(.caption)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.1))
+                        .foregroundStyle(.blue)
+                        .clipShape(Capsule())
+                }
+
+                if app.isOffloaded {
+                    Text("Offloaded")
+                        .font(.caption)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
+                        .background(Color.gray.opacity(0.1))
+                        .foregroundStyle(.gray)
+                        .clipShape(Capsule())
+                }
+            }
         }
         .opacity(animateIn ? 1 : 0)
         .offset(y: animateIn ? 0 : -10)
@@ -248,6 +275,14 @@ struct AppDetailView: View {
                 DetailRow(label: "In-App Purchases", value: app.hasInAppPurchases ? "Yes" : "No")
                 Divider()
                 DetailRow(label: "System App", value: app.isSystemApp ? "Yes" : "No")
+                if app.isOffloaded {
+                    Divider()
+                    DetailRow(label: "Status", value: "Offloaded (data removed)")
+                }
+                if let rank = app.categoryRank {
+                    Divider()
+                    DetailRow(label: "Category Rank", value: "#\(rank) by rating")
+                }
             }
         }
         .padding(16)
@@ -283,6 +318,40 @@ struct AppDetailView: View {
         .background(
             app.deletionRecommendation.color.opacity(0.05)
         )
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    // MARK: - Better Alternatives
+
+    private var betterAlternativesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "arrow.up.circle.fill")
+                    .foregroundStyle(.blue)
+                Text("Better Alternatives in \(app.category.rawValue)")
+                    .font(.headline)
+            }
+
+            Text("Higher-rated apps in the same category that you already have installed:")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            ForEach(app.betterAlternatives, id: \.self) { alt in
+                HStack(spacing: 8) {
+                    Image(systemName: "star.fill")
+                        .font(.caption)
+                        .foregroundStyle(.yellow)
+                    Text(alt)
+                        .font(.subheadline)
+                    Spacer()
+                }
+                .padding(8)
+                .background(Color.blue.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .padding(16)
+        .background(Color(.secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
@@ -365,6 +434,13 @@ struct AppDetailView: View {
             return "Last used \(app.lastUsedDescription.lowercased())"
         case .rarelyUsed:
             return "This app is rarely opened — last used \(app.lastUsedDescription.lowercased())"
+        case .lowestRatedInCategory:
+            if let rank = app.categoryRank {
+                return "Ranked #\(rank) in \(app.category.rawValue) — better alternatives available"
+            }
+            return "Lower rated than other apps in \(app.category.rawValue)"
+        case .offloadedUnused:
+            return "App data has been removed from device — still taking up space"
         }
     }
 
