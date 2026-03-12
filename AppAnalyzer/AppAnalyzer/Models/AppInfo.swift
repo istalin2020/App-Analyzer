@@ -44,6 +44,45 @@ enum SecurityRisk: String, Codable, Comparable {
     }
 }
 
+/// Deletion recommendation level
+enum DeletionRecommendation: String, Codable, Comparable {
+    case keep = "Keep"
+    case consider = "Consider Removing"
+    case suggested = "Suggested for Deletion"
+    case stronglyRecommend = "Strongly Recommend Deleting"
+
+    var color: Color {
+        switch self {
+        case .keep: return .green
+        case .consider: return .yellow
+        case .suggested: return .orange
+        case .stronglyRecommend: return .red
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .keep: return "checkmark.circle.fill"
+        case .consider: return "questionmark.circle.fill"
+        case .suggested: return "minus.circle.fill"
+        case .stronglyRecommend: return "trash.circle.fill"
+        }
+    }
+
+    var sortOrder: Int {
+        switch self {
+        case .keep: return 0
+        case .consider: return 1
+        case .suggested: return 2
+        case .stronglyRecommend: return 3
+        }
+    }
+
+    static func < (lhs: DeletionRecommendation, rhs: DeletionRecommendation) -> Bool {
+        lhs.sortOrder < rhs.sortOrder
+    }
+}
+
 /// Reason why an app is flagged
 enum FlagReason: String, Codable, Identifiable {
     case poorRating = "Poor App Store Rating"
@@ -56,6 +95,8 @@ enum FlagReason: String, Codable, Identifiable {
     case negativeReviews = "Negative User Reviews"
     case abandonedByDeveloper = "Abandoned by Developer"
     case knownVulnerabilities = "Known Vulnerabilities"
+    case notUsedRecently = "Not Used in 12+ Months"
+    case rarelyUsed = "Rarely Used"
 
     var id: String { rawValue }
 
@@ -71,6 +112,8 @@ enum FlagReason: String, Codable, Identifiable {
         case .negativeReviews: return "hand.thumbsdown.fill"
         case .abandonedByDeveloper: return "xmark.bin.fill"
         case .knownVulnerabilities: return "ladybug.fill"
+        case .notUsedRecently: return "hourglass.bottomhalf.filled"
+        case .rarelyUsed: return "moon.zzz.fill"
         }
     }
 
@@ -86,6 +129,8 @@ enum FlagReason: String, Codable, Identifiable {
         case .negativeReviews: return .orange
         case .abandonedByDeveloper: return .brown
         case .knownVulnerabilities: return .red
+        case .notUsedRecently: return .indigo
+        case .rarelyUsed: return .purple
         }
     }
 }
@@ -109,6 +154,8 @@ struct AppInfo: Identifiable, Codable, Equatable {
     let hasInAppPurchases: Bool
     let privacyPermissions: [String]
     let urlScheme: String? // URL scheme used to detect if app is installed
+    var lastUsedDate: Date? // Estimated last usage date
+    var deletionRecommendation: DeletionRecommendation // Computed by analyzer
 
     var isFlagged: Bool {
         !flagReasons.isEmpty
@@ -116,6 +163,21 @@ struct AppInfo: Identifiable, Codable, Equatable {
 
     var daysSinceUpdate: Int {
         Calendar.current.dateComponents([.day], from: lastUpdated, to: Date()).day ?? 0
+    }
+
+    var daysSinceLastUsed: Int? {
+        guard let lastUsed = lastUsedDate else { return nil }
+        return Calendar.current.dateComponents([.day], from: lastUsed, to: Date()).day
+    }
+
+    var lastUsedDescription: String {
+        guard let days = daysSinceLastUsed else { return "Unknown" }
+        if days < 1 { return "Today" }
+        if days == 1 { return "Yesterday" }
+        if days < 7 { return "\(days) days ago" }
+        if days < 30 { return "\(days / 7) weeks ago" }
+        if days < 365 { return "\(days / 30) months ago" }
+        return "\(days / 365)+ years ago"
     }
 
     var ratingStars: String {
@@ -145,6 +207,8 @@ struct ScanSummary {
     let flaggedApps: Int
     let securityRisks: Int
     let outdatedApps: Int
+    let unusedApps: Int
+    let suggestedDeletions: Int
     let potentialSpaceSaved: Double
     let categoryCounts: [AppCategory: Int]
 
