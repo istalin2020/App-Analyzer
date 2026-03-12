@@ -101,8 +101,8 @@ struct AppInfo: Identifiable, Codable, Equatable {
     let lastUpdated: Date
     let sizeInMB: Double
     let developerName: String
-    let securityRisk: SecurityRisk
-    let flagReasons: [FlagReason]
+    var securityRisk: SecurityRisk       // Computed by analyzer
+    var flagReasons: [FlagReason]        // Computed by analyzer
     let iconName: String
     let isSystemApp: Bool
     let popularityScore: Int // 1-100

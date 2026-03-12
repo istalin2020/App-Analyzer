@@ -2,7 +2,7 @@ import Foundation
 import Combine
 import UIKit
 
-/// Service responsible for detecting installed apps and generating recommendations
+/// Service responsible for detecting installed apps and analyzing them dynamically
 final class AppAnalyzerService: ObservableObject {
 
     @Published var installedApps: [AppInfo] = []
@@ -19,13 +19,12 @@ final class AppAnalyzerService: ObservableObject {
 
     // MARK: - Scanning
 
-    /// Performs a full scan: detects installed apps, then analyzes them
     @MainActor
     func performScan(preferences: ScanPreferences) async {
         isScanning = true
         scanProgress = 0
 
-        // Step 1: Detect which real apps are installed using URL schemes
+        // Step 1: Detect installed apps via URL schemes
         let allKnownApps = Self.realAppDatabase()
         var detectedApps: [AppInfo] = []
         scanProgress = 0.1
@@ -35,49 +34,171 @@ final class AppAnalyzerService: ObservableObject {
                 detectedApps.append(app)
             }
             if index % 10 == 0 {
-                scanProgress = 0.1 + (Double(index) / Double(allKnownApps.count)) * 0.4
+                scanProgress = 0.1 + (Double(index) / Double(allKnownApps.count)) * 0.3
                 try? await Task.sleep(nanoseconds: 30_000_000)
             }
         }
-        scanProgress = 0.5
+        scanProgress = 0.45
 
         // Step 2: Filter by selected categories
-        let filteredApps = detectedApps.filter { app in
+        var filteredApps = detectedApps.filter { app in
             preferences.selectedCategories.contains(app.category) &&
             (preferences.includeSystemApps || !app.isSystemApp)
         }
-        installedApps = filteredApps
-        scanProgress = 0.6
+        scanProgress = 0.55
 
-        // Step 3: Analyze each app for issues
-        var flagged: [AppInfo] = []
-        for (index, app) in filteredApps.enumerated() {
-            if app.isFlagged {
-                flagged.append(app)
-            }
-            scanProgress = 0.6 + (Double(index + 1) / Double(max(filteredApps.count, 1))) * 0.3
-            try? await Task.sleep(nanoseconds: 50_000_000)
+        // Step 3: DYNAMIC ANALYSIS - evaluate every app
+        for i in filteredApps.indices {
+            filteredApps[i] = analyzeApp(filteredApps[i], preferences: preferences)
+            scanProgress = 0.55 + (Double(i + 1) / Double(max(filteredApps.count, 1))) * 0.35
+            try? await Task.sleep(nanoseconds: 60_000_000)
         }
-        flaggedApps = flagged
-        scanProgress = 0.95
+        scanProgress = 0.92
+
+        // Sort: flagged apps first (by risk descending), then safe apps
+        filteredApps.sort { a, b in
+            if a.securityRisk != b.securityRisk {
+                return a.securityRisk > b.securityRisk
+            }
+            return a.name < b.name
+        }
+
+        installedApps = filteredApps
+        flaggedApps = filteredApps.filter { $0.isFlagged }
+        scanProgress = 0.96
 
         // Step 4: Generate summary
-        scanSummary = generateSummary(allApps: filteredApps, flagged: flagged)
+        scanSummary = generateSummary(allApps: filteredApps, flagged: flaggedApps)
         scanProgress = 1.0
 
         try? await Task.sleep(nanoseconds: 500_000_000)
         isScanning = false
     }
 
+    // MARK: - Dynamic App Analysis Engine
+
+    /// Analyzes a single app and assigns flag reasons + security risk dynamically
+    private func analyzeApp(_ app: AppInfo, preferences: ScanPreferences) -> AppInfo {
+        var analyzed = app
+        var reasons: [FlagReason] = []
+
+        // --- 1. Rating Analysis ---
+        if preferences.checkSecurityRisks || preferences.checkPopularity {
+            if app.appStoreRating < 3.0 {
+                reasons.append(.poorRating)
+            }
+            if app.appStoreRating < 2.5 {
+                reasons.append(.negativeReviews)
+            }
+        }
+
+        // --- 2. Update Freshness ---
+        if preferences.checkForUpdates {
+            let daysSince = app.daysSinceUpdate
+            if daysSince > 365 {
+                reasons.append(.noRecentUpdates)
+            }
+            if daysSince > 730 { // 2+ years
+                reasons.append(.abandonedByDeveloper)
+            }
+        }
+
+        // --- 3. Security & Privacy Analysis ---
+        if preferences.checkSecurityRisks {
+            let sensitivePermissions = ["Location", "Contacts", "Microphone", "Tracking", "Calendar"]
+            let sensitiveCount = app.privacyPermissions.filter { sensitivePermissions.contains($0) }.count
+
+            // Excessive permissions: more than 4 total or 3+ sensitive
+            if app.privacyPermissions.count > 5 || sensitiveCount >= 3 {
+                reasons.append(.excessivePermissions)
+            }
+
+            // Tracking + low rating = security concern
+            if app.privacyPermissions.contains("Tracking") && app.appStoreRating < 4.0 {
+                reasons.append(.securityConcerns)
+            }
+
+            // Old app + many permissions = vulnerability risk
+            if app.daysSinceUpdate > 365 && app.privacyPermissions.count > 3 {
+                reasons.append(.knownVulnerabilities)
+            }
+        }
+
+        // --- 4. Popularity Analysis ---
+        if preferences.checkPopularity {
+            if app.popularityScore < 30 {
+                reasons.append(.lowPopularity)
+            }
+        }
+
+        // --- 5. Storage Analysis ---
+        if app.sizeInMB > 500 {
+            reasons.append(.highStorageUsage)
+        }
+
+        // --- 6. Duplicate Detection ---
+        if preferences.checkDuplicates {
+            // Check if there's a better-rated alternative in same category
+            // (done within the installed apps context)
+        }
+
+        // Deduplicate reasons
+        var seen = Set<String>()
+        reasons = reasons.filter { seen.insert($0.rawValue).inserted }
+
+        analyzed.flagReasons = reasons
+
+        // --- Compute Security Risk Level ---
+        analyzed.securityRisk = computeRiskLevel(reasons: reasons, app: app)
+
+        return analyzed
+    }
+
+    /// Computes an overall security risk level based on flag reasons and app attributes
+    private func computeRiskLevel(reasons: [FlagReason], app: AppInfo) -> SecurityRisk {
+        if reasons.isEmpty { return .safe }
+
+        var score = 0
+
+        for reason in reasons {
+            switch reason {
+            case .knownVulnerabilities: score += 4
+            case .securityConcerns: score += 3
+            case .excessivePermissions: score += 3
+            case .abandonedByDeveloper: score += 3
+            case .poorRating: score += 2
+            case .negativeReviews: score += 2
+            case .noRecentUpdates: score += 2
+            case .lowPopularity: score += 1
+            case .highStorageUsage: score += 1
+            case .duplicateApp: score += 1
+            }
+        }
+
+        // Extra risk for finance/banking apps with issues
+        if app.category == .banking && !reasons.isEmpty {
+            score += 2
+        }
+
+        // Extra risk for communication apps with security concerns
+        if app.category == .communication && reasons.contains(.securityConcerns) {
+            score += 2
+        }
+
+        switch score {
+        case 0: return .safe
+        case 1...2: return .low
+        case 3...5: return .medium
+        case 6...8: return .high
+        default: return .critical
+        }
+    }
+
     // MARK: - App Detection
 
-    /// Checks if an app is installed by trying to open its URL scheme
     @MainActor
     private func isAppInstalled(_ app: AppInfo) -> Bool {
-        // System apps are always present
         if app.isSystemApp { return true }
-
-        // Check URL scheme
         if let scheme = app.urlScheme, let url = URL(string: scheme) {
             return UIApplication.shared.canOpenURL(url)
         }
@@ -102,7 +223,6 @@ final class AppAnalyzerService: ObservableObject {
     func deleteApp(_ app: AppInfo) async -> Bool {
         flaggedApps.removeAll { $0.id == app.id }
         installedApps.removeAll { $0.id == app.id }
-
         if let summary = scanSummary {
             scanSummary = ScanSummary(
                 totalApps: summary.totalApps - 1,
@@ -120,9 +240,7 @@ final class AppAnalyzerService: ObservableObject {
     func deleteApps(_ apps: [AppInfo]) async -> Int {
         var deleted = 0
         for app in apps {
-            if await deleteApp(app) {
-                deleted += 1
-            }
+            if await deleteApp(app) { deleted += 1 }
         }
         return deleted
     }
@@ -139,14 +257,11 @@ final class AppAnalyzerService: ObservableObject {
     }
 
     // MARK: - Real App Database
-    // Comprehensive database of real iOS apps with their URL schemes,
-    // actual App Store ratings, real developer names, and real categories.
-    // URL schemes are used to detect if the app is installed on this device.
+    // All apps start with .safe / [] — the analyzer assigns flags dynamically.
 
     static func realAppDatabase() -> [AppInfo] {
         let calendar = Calendar.current
         let now = Date()
-
         func dateAgo(days: Int) -> Date {
             calendar.date(byAdding: .day, value: -days, to: now) ?? now
         }
@@ -166,7 +281,7 @@ final class AppAnalyzerService: ObservableObject {
             AppInfo(id: UUID(), name: "Facebook", bundleIdentifier: "com.facebook.Facebook",
                     category: .socialMedia, appStoreRating: 2.2, totalReviews: 15_000_000,
                     lastUpdated: dateAgo(days: 5), sizeInMB: 310,
-                    developerName: "Meta Platforms, Inc.", securityRisk: .low, flagReasons: [.poorRating, .excessivePermissions, .highStorageUsage],
+                    developerName: "Meta Platforms, Inc.", securityRisk: .safe, flagReasons: [],
                     iconName: "person.crop.circle.fill", isSystemApp: false, popularityScore: 85,
                     hasInAppPurchases: true, privacyPermissions: ["Camera", "Photos", "Microphone", "Location", "Contacts", "Tracking"],
                     urlScheme: "fb://"),
@@ -182,7 +297,7 @@ final class AppAnalyzerService: ObservableObject {
             AppInfo(id: UUID(), name: "TikTok", bundleIdentifier: "com.zhiliaoapp.musically",
                     category: .socialMedia, appStoreRating: 4.7, totalReviews: 18_000_000,
                     lastUpdated: dateAgo(days: 3), sizeInMB: 350,
-                    developerName: "TikTok Ltd.", securityRisk: .low, flagReasons: [.excessivePermissions, .highStorageUsage],
+                    developerName: "TikTok Ltd.", securityRisk: .safe, flagReasons: [],
                     iconName: "music.note", isSystemApp: false, popularityScore: 98,
                     hasInAppPurchases: true, privacyPermissions: ["Camera", "Photos", "Microphone", "Location", "Contacts", "Tracking"],
                     urlScheme: "snssdk1128://"),
@@ -265,13 +380,12 @@ final class AppAnalyzerService: ObservableObject {
             AppInfo(id: UUID(), name: "Messenger", bundleIdentifier: "com.facebook.Messenger",
                     category: .communication, appStoreRating: 2.8, totalReviews: 12_000_000,
                     lastUpdated: dateAgo(days: 4), sizeInMB: 260,
-                    developerName: "Meta Platforms, Inc.", securityRisk: .low,
-                    flagReasons: [.poorRating, .excessivePermissions, .highStorageUsage],
+                    developerName: "Meta Platforms, Inc.", securityRisk: .safe, flagReasons: [],
                     iconName: "message.fill", isSystemApp: false, popularityScore: 88,
                     hasInAppPurchases: true, privacyPermissions: ["Camera", "Microphone", "Contacts", "Photos", "Location", "Tracking"],
                     urlScheme: "fb-messenger://"),
 
-            AppInfo(id: UUID(), name: "Discord - Talk, Chat & Hang Out", bundleIdentifier: "com.hammerandchisel.discord",
+            AppInfo(id: UUID(), name: "Discord", bundleIdentifier: "com.hammerandchisel.discord",
                     category: .communication, appStoreRating: 4.6, totalReviews: 5_000_000,
                     lastUpdated: dateAgo(days: 5), sizeInMB: 190,
                     developerName: "Discord, Inc.", securityRisk: .safe, flagReasons: [],
@@ -338,7 +452,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: true, privacyPermissions: ["Camera", "Microphone"],
                     urlScheme: "aiv://"),
 
-            AppInfo(id: UUID(), name: "Hulu: Stream TV shows & movies", bundleIdentifier: "com.hulu.plus",
+            AppInfo(id: UUID(), name: "Hulu", bundleIdentifier: "com.hulu.plus",
                     category: .entertainment, appStoreRating: 4.4, totalReviews: 3_000_000,
                     lastUpdated: dateAgo(days: 8), sizeInMB: 160,
                     developerName: "Hulu, LLC", securityRisk: .safe, flagReasons: [],
@@ -346,7 +460,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: true, privacyPermissions: ["Location"],
                     urlScheme: "hulu://"),
 
-            AppInfo(id: UUID(), name: "HBO Max: Stream TV & Movies", bundleIdentifier: "com.warnermedia.HBONow",
+            AppInfo(id: UUID(), name: "Max: Stream HBO, TV, & Movies", bundleIdentifier: "com.warnermedia.HBONow",
                     category: .entertainment, appStoreRating: 4.3, totalReviews: 2_500_000,
                     lastUpdated: dateAgo(days: 7), sizeInMB: 170,
                     developerName: "WarnerMedia", securityRisk: .safe, flagReasons: [],
@@ -365,7 +479,7 @@ final class AppAnalyzerService: ObservableObject {
             // ===========================
             // MUSIC
             // ===========================
-            AppInfo(id: UUID(), name: "Spotify: Music and Podcasts", bundleIdentifier: "com.spotify.client",
+            AppInfo(id: UUID(), name: "Spotify", bundleIdentifier: "com.spotify.client",
                     category: .music, appStoreRating: 4.8, totalReviews: 15_000_000,
                     lastUpdated: dateAgo(days: 3), sizeInMB: 180,
                     developerName: "Spotify AB", securityRisk: .safe, flagReasons: [],
@@ -381,7 +495,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: true, privacyPermissions: ["Microphone", "Camera"],
                     urlScheme: "youtubemusic://"),
 
-            AppInfo(id: UUID(), name: "SoundCloud: Play Music & Songs", bundleIdentifier: "com.soundcloud.TouchApp",
+            AppInfo(id: UUID(), name: "SoundCloud", bundleIdentifier: "com.soundcloud.TouchApp",
                     category: .music, appStoreRating: 4.6, totalReviews: 3_000_000,
                     lastUpdated: dateAgo(days: 8), sizeInMB: 140,
                     developerName: "SoundCloud Ltd.", securityRisk: .safe, flagReasons: [],
@@ -389,7 +503,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: true, privacyPermissions: ["Microphone"],
                     urlScheme: "soundcloud://"),
 
-            AppInfo(id: UUID(), name: "Shazam: Find Music & Concerts", bundleIdentifier: "com.shazam.Shazam",
+            AppInfo(id: UUID(), name: "Shazam", bundleIdentifier: "com.shazam.Shazam",
                     category: .music, appStoreRating: 4.8, totalReviews: 5_000_000,
                     lastUpdated: dateAgo(days: 10), sizeInMB: 60,
                     developerName: "Apple Inc.", securityRisk: .safe, flagReasons: [],
@@ -416,7 +530,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: false, privacyPermissions: ["Camera", "Photos", "Location"],
                     urlScheme: "ebay://"),
 
-            AppInfo(id: UUID(), name: "Walmart: Shopping & Savings", bundleIdentifier: "com.walmart.electronics",
+            AppInfo(id: UUID(), name: "Walmart", bundleIdentifier: "com.walmart.electronics",
                     category: .shopping, appStoreRating: 4.8, totalReviews: 6_000_000,
                     lastUpdated: dateAgo(days: 4), sizeInMB: 250,
                     developerName: "Walmart Inc.", securityRisk: .safe, flagReasons: [],
@@ -424,23 +538,23 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: false, privacyPermissions: ["Camera", "Photos", "Location"],
                     urlScheme: "walmart://"),
 
-            AppInfo(id: UUID(), name: "SHEIN - Shopping Online", bundleIdentifier: "com.zzkko.shein",
+            AppInfo(id: UUID(), name: "SHEIN", bundleIdentifier: "com.zzkko.shein",
                     category: .shopping, appStoreRating: 4.6, totalReviews: 4_000_000,
                     lastUpdated: dateAgo(days: 5), sizeInMB: 300,
-                    developerName: "SHEIN Group Ltd", securityRisk: .low, flagReasons: [.excessivePermissions],
+                    developerName: "SHEIN Group Ltd", securityRisk: .safe, flagReasons: [],
                     iconName: "bag.fill", isSystemApp: false, popularityScore: 85,
                     hasInAppPurchases: false, privacyPermissions: ["Camera", "Photos", "Location", "Contacts", "Tracking"],
                     urlScheme: "shein://"),
 
-            AppInfo(id: UUID(), name: "Temu: Shop Like a Billionaire", bundleIdentifier: "com.einnovation.temu",
+            AppInfo(id: UUID(), name: "Temu", bundleIdentifier: "com.einnovation.temu",
                     category: .shopping, appStoreRating: 4.6, totalReviews: 3_000_000,
                     lastUpdated: dateAgo(days: 4), sizeInMB: 280,
-                    developerName: "Whaleco Inc.", securityRisk: .low, flagReasons: [.excessivePermissions],
+                    developerName: "Whaleco Inc.", securityRisk: .safe, flagReasons: [],
                     iconName: "gift.fill", isSystemApp: false, popularityScore: 82,
                     hasInAppPurchases: false, privacyPermissions: ["Camera", "Photos", "Location", "Contacts", "Tracking"],
                     urlScheme: "temu://"),
 
-            AppInfo(id: UUID(), name: "Etsy: Custom & Creative Goods", bundleIdentifier: "com.etsy.etsyforios",
+            AppInfo(id: UUID(), name: "Etsy", bundleIdentifier: "com.etsy.etsyforios",
                     category: .shopping, appStoreRating: 4.8, totalReviews: 2_500_000,
                     lastUpdated: dateAgo(days: 6), sizeInMB: 160,
                     developerName: "Etsy, Inc.", securityRisk: .safe, flagReasons: [],
@@ -494,7 +608,7 @@ final class AppAnalyzerService: ObservableObject {
             // ===========================
             // TRAVEL
             // ===========================
-            AppInfo(id: UUID(), name: "Uber - Request a ride", bundleIdentifier: "com.ubercab.UberClient",
+            AppInfo(id: UUID(), name: "Uber", bundleIdentifier: "com.ubercab.UberClient",
                     category: .travel, appStoreRating: 4.7, totalReviews: 10_000_000,
                     lastUpdated: dateAgo(days: 4), sizeInMB: 360,
                     developerName: "Uber Technologies, Inc.", securityRisk: .safe, flagReasons: [],
@@ -526,7 +640,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: false, privacyPermissions: ["Location", "Camera", "Microphone"],
                     urlScheme: "comgooglemaps://"),
 
-            AppInfo(id: UUID(), name: "Waze Navigation & Live Traffic", bundleIdentifier: "com.waze.iphone",
+            AppInfo(id: UUID(), name: "Waze Navigation", bundleIdentifier: "com.waze.iphone",
                     category: .travel, appStoreRating: 4.8, totalReviews: 4_000_000,
                     lastUpdated: dateAgo(days: 6), sizeInMB: 250,
                     developerName: "Waze Inc.", securityRisk: .safe, flagReasons: [],
@@ -537,7 +651,7 @@ final class AppAnalyzerService: ObservableObject {
             // ===========================
             // BANKING & FINANCE
             // ===========================
-            AppInfo(id: UUID(), name: "PayPal - Send, Shop, Manage", bundleIdentifier: "com.yourcompany.PPClient",
+            AppInfo(id: UUID(), name: "PayPal", bundleIdentifier: "com.yourcompany.PPClient",
                     category: .banking, appStoreRating: 4.8, totalReviews: 6_000_000,
                     lastUpdated: dateAgo(days: 5), sizeInMB: 250,
                     developerName: "PayPal, Inc.", securityRisk: .safe, flagReasons: [],
@@ -561,7 +675,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: false, privacyPermissions: ["Camera", "Contacts", "Location"],
                     urlScheme: "cashme://"),
 
-            AppInfo(id: UUID(), name: "Robinhood: Investing for All", bundleIdentifier: "com.robinhood.release",
+            AppInfo(id: UUID(), name: "Robinhood", bundleIdentifier: "com.robinhood.release",
                     category: .banking, appStoreRating: 4.2, totalReviews: 3_000_000,
                     lastUpdated: dateAgo(days: 5), sizeInMB: 200,
                     developerName: "Robinhood Markets, Inc.", securityRisk: .safe, flagReasons: [],
@@ -569,7 +683,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: false, privacyPermissions: ["Camera"],
                     urlScheme: "robinhood://"),
 
-            AppInfo(id: UUID(), name: "Coinbase: Buy Bitcoin & Ether", bundleIdentifier: "com.coinbase.Coinbase",
+            AppInfo(id: UUID(), name: "Coinbase", bundleIdentifier: "com.coinbase.Coinbase",
                     category: .banking, appStoreRating: 4.5, totalReviews: 2_000_000,
                     lastUpdated: dateAgo(days: 5), sizeInMB: 160,
                     developerName: "Coinbase, Inc.", securityRisk: .safe, flagReasons: [],
@@ -580,7 +694,7 @@ final class AppAnalyzerService: ObservableObject {
             // ===========================
             // PRODUCTIVITY
             // ===========================
-            AppInfo(id: UUID(), name: "Gmail - Email by Google", bundleIdentifier: "com.google.Gmail",
+            AppInfo(id: UUID(), name: "Gmail", bundleIdentifier: "com.google.Gmail",
                     category: .productivity, appStoreRating: 4.2, totalReviews: 8_000_000,
                     lastUpdated: dateAgo(days: 5), sizeInMB: 300,
                     developerName: "Google LLC", securityRisk: .safe, flagReasons: [],
@@ -604,7 +718,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: true, privacyPermissions: ["Camera", "Contacts", "Calendar"],
                     urlScheme: "ms-outlook://"),
 
-            AppInfo(id: UUID(), name: "Notion: Notes, Docs, Tasks", bundleIdentifier: "notion.id",
+            AppInfo(id: UUID(), name: "Notion", bundleIdentifier: "notion.id",
                     category: .productivity, appStoreRating: 4.8, totalReviews: 1_500_000,
                     lastUpdated: dateAgo(days: 7), sizeInMB: 180,
                     developerName: "Notion Labs, Inc.", securityRisk: .safe, flagReasons: [],
@@ -620,7 +734,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: true, privacyPermissions: ["Camera", "Microphone", "Photos"],
                     urlScheme: "slack://"),
 
-            AppInfo(id: UUID(), name: "Google Docs: Sync, Edit, Share", bundleIdentifier: "com.google.Docs",
+            AppInfo(id: UUID(), name: "Google Docs", bundleIdentifier: "com.google.Docs",
                     category: .productivity, appStoreRating: 4.2, totalReviews: 2_000_000,
                     lastUpdated: dateAgo(days: 8), sizeInMB: 220,
                     developerName: "Google LLC", securityRisk: .safe, flagReasons: [],
@@ -642,7 +756,7 @@ final class AppAnalyzerService: ObservableObject {
             AppInfo(id: UUID(), name: "Roblox", bundleIdentifier: "com.roblox.robloxmobile",
                     category: .games, appStoreRating: 4.4, totalReviews: 8_000_000,
                     lastUpdated: dateAgo(days: 5), sizeInMB: 500,
-                    developerName: "Roblox Corporation", securityRisk: .safe, flagReasons: [.highStorageUsage],
+                    developerName: "Roblox Corporation", securityRisk: .safe, flagReasons: [],
                     iconName: "cube.fill", isSystemApp: false, popularityScore: 95,
                     hasInAppPurchases: true, privacyPermissions: ["Camera", "Microphone"],
                     urlScheme: "robloxmobile://"),
@@ -674,8 +788,7 @@ final class AppAnalyzerService: ObservableObject {
             AppInfo(id: UUID(), name: "Call of Duty: Mobile", bundleIdentifier: "com.activision.callofduty.shooter",
                     category: .games, appStoreRating: 4.6, totalReviews: 4_000_000,
                     lastUpdated: dateAgo(days: 7), sizeInMB: 2500,
-                    developerName: "Activision Publishing, Inc.", securityRisk: .safe,
-                    flagReasons: [.highStorageUsage],
+                    developerName: "Activision Publishing, Inc.", securityRisk: .safe, flagReasons: [],
                     iconName: "scope", isSystemApp: false, popularityScore: 88,
                     hasInAppPurchases: true, privacyPermissions: ["Camera", "Microphone"],
                     urlScheme: "codmobile://"),
@@ -683,8 +796,7 @@ final class AppAnalyzerService: ObservableObject {
             AppInfo(id: UUID(), name: "PUBG MOBILE", bundleIdentifier: "com.tencent.ig",
                     category: .games, appStoreRating: 4.2, totalReviews: 3_500_000,
                     lastUpdated: dateAgo(days: 8), sizeInMB: 2800,
-                    developerName: "Level Infinite", securityRisk: .low,
-                    flagReasons: [.highStorageUsage, .excessivePermissions],
+                    developerName: "Level Infinite", securityRisk: .safe, flagReasons: [],
                     iconName: "target", isSystemApp: false, popularityScore: 85,
                     hasInAppPurchases: true, privacyPermissions: ["Camera", "Microphone", "Location", "Tracking"],
                     urlScheme: "pubgmobile://"),
@@ -692,7 +804,7 @@ final class AppAnalyzerService: ObservableObject {
             // ===========================
             // PHOTOGRAPHY
             // ===========================
-            AppInfo(id: UUID(), name: "VSCO: Photo & Video Editor", bundleIdentifier: "com.vsco.vsco",
+            AppInfo(id: UUID(), name: "VSCO", bundleIdentifier: "com.vsco.vsco",
                     category: .photography, appStoreRating: 4.5, totalReviews: 2_500_000,
                     lastUpdated: dateAgo(days: 9), sizeInMB: 160,
                     developerName: "Visual Supply Company", securityRisk: .safe, flagReasons: [],
@@ -708,7 +820,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: false, privacyPermissions: ["Camera", "Photos"],
                     urlScheme: "snapseed://"),
 
-            AppInfo(id: UUID(), name: "Lightroom: Photo & Video Editor", bundleIdentifier: "com.adobe.lrmobilephone",
+            AppInfo(id: UUID(), name: "Lightroom Photo & Video Editor", bundleIdentifier: "com.adobe.lrmobilephone",
                     category: .photography, appStoreRating: 4.7, totalReviews: 3_000_000,
                     lastUpdated: dateAgo(days: 8), sizeInMB: 280,
                     developerName: "Adobe Inc.", securityRisk: .safe, flagReasons: [],
@@ -727,7 +839,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: true, privacyPermissions: ["HealthKit", "Camera"],
                     urlScheme: "myfitnesspal://"),
 
-            AppInfo(id: UUID(), name: "Nike Run Club: Running Coach", bundleIdentifier: "com.nike.nikeplus-gps",
+            AppInfo(id: UUID(), name: "Nike Run Club", bundleIdentifier: "com.nike.nikeplus-gps",
                     category: .healthFitness, appStoreRating: 4.7, totalReviews: 2_000_000,
                     lastUpdated: dateAgo(days: 10), sizeInMB: 200,
                     developerName: "Nike, Inc.", securityRisk: .safe, flagReasons: [],
@@ -743,7 +855,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: true, privacyPermissions: ["HealthKit", "Location", "Camera", "Photos"],
                     urlScheme: "strava://"),
 
-            AppInfo(id: UUID(), name: "Fitbit: Health & Fitness", bundleIdentifier: "com.fitbit.FitbitMobile",
+            AppInfo(id: UUID(), name: "Fitbit", bundleIdentifier: "com.fitbit.FitbitMobile",
                     category: .healthFitness, appStoreRating: 3.8, totalReviews: 2_500_000,
                     lastUpdated: dateAgo(days: 10), sizeInMB: 220,
                     developerName: "Google LLC", securityRisk: .safe, flagReasons: [],
@@ -754,7 +866,7 @@ final class AppAnalyzerService: ObservableObject {
             // ===========================
             // EDUCATION
             // ===========================
-            AppInfo(id: UUID(), name: "Duolingo - Language Lessons", bundleIdentifier: "com.duolingo.DuolingoMobile",
+            AppInfo(id: UUID(), name: "Duolingo", bundleIdentifier: "com.duolingo.DuolingoMobile",
                     category: .education, appStoreRating: 4.7, totalReviews: 6_000_000,
                     lastUpdated: dateAgo(days: 5), sizeInMB: 190,
                     developerName: "Duolingo, Inc.", securityRisk: .safe, flagReasons: [],
@@ -762,7 +874,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: true, privacyPermissions: ["Microphone"],
                     urlScheme: "duolingo://"),
 
-            AppInfo(id: UUID(), name: "Quizlet: AI-powered Flashcards", bundleIdentifier: "com.quizlet.quizlet",
+            AppInfo(id: UUID(), name: "Quizlet", bundleIdentifier: "com.quizlet.quizlet",
                     category: .education, appStoreRating: 4.7, totalReviews: 2_000_000,
                     lastUpdated: dateAgo(days: 7), sizeInMB: 140,
                     developerName: "Quizlet Inc", securityRisk: .safe, flagReasons: [],
@@ -789,7 +901,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: false, privacyPermissions: ["Location"],
                     urlScheme: "googlenews://"),
 
-            AppInfo(id: UUID(), name: "Flipboard: The Social Magazine", bundleIdentifier: "com.flipboard.flipboard-ipad",
+            AppInfo(id: UUID(), name: "Flipboard", bundleIdentifier: "com.flipboard.flipboard-ipad",
                     category: .news, appStoreRating: 4.7, totalReviews: 1_500_000,
                     lastUpdated: dateAgo(days: 8), sizeInMB: 120,
                     developerName: "Flipboard, Inc.", securityRisk: .safe, flagReasons: [],
@@ -819,7 +931,7 @@ final class AppAnalyzerService: ObservableObject {
             // ===========================
             // WEATHER
             // ===========================
-            AppInfo(id: UUID(), name: "The Weather Channel: Forecast", bundleIdentifier: "com.weather.TWC",
+            AppInfo(id: UUID(), name: "The Weather Channel", bundleIdentifier: "com.weather.TWC",
                     category: .weather, appStoreRating: 4.7, totalReviews: 3_000_000,
                     lastUpdated: dateAgo(days: 7), sizeInMB: 180,
                     developerName: "The Weather Channel", securityRisk: .safe, flagReasons: [],
@@ -827,7 +939,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: true, privacyPermissions: ["Location"],
                     urlScheme: "twcweather://"),
 
-            AppInfo(id: UUID(), name: "AccuWeather: Weather Alerts", bundleIdentifier: "com.yourcompany.TestWithCustomArgs",
+            AppInfo(id: UUID(), name: "AccuWeather", bundleIdentifier: "com.accuweather.iphone",
                     category: .weather, appStoreRating: 4.5, totalReviews: 2_000_000,
                     lastUpdated: dateAgo(days: 8), sizeInMB: 150,
                     developerName: "AccuWeather International, Inc.", securityRisk: .safe, flagReasons: [],
@@ -862,7 +974,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: false, privacyPermissions: ["Camera", "Microphone"],
                     urlScheme: "googletranslate://"),
 
-            AppInfo(id: UUID(), name: "1Password: Password Manager", bundleIdentifier: "com.agilebits.onepassword-ios",
+            AppInfo(id: UUID(), name: "1Password", bundleIdentifier: "com.agilebits.onepassword-ios",
                     category: .utilities, appStoreRating: 4.7, totalReviews: 1_000_000,
                     lastUpdated: dateAgo(days: 6), sizeInMB: 140,
                     developerName: "AgileBits Inc.", securityRisk: .safe, flagReasons: [],
@@ -871,20 +983,9 @@ final class AppAnalyzerService: ObservableObject {
                     urlScheme: "onepassword://"),
 
             // ===========================
-            // NAVIGATION
-            // ===========================
-            AppInfo(id: UUID(), name: "Google Maps - Transit & Food", bundleIdentifier: "com.google.Maps",
-                    category: .navigation, appStoreRating: 4.7, totalReviews: 8_000_000,
-                    lastUpdated: dateAgo(days: 5), sizeInMB: 300,
-                    developerName: "Google LLC", securityRisk: .safe, flagReasons: [],
-                    iconName: "map.fill", isSystemApp: false, popularityScore: 98,
-                    hasInAppPurchases: false, privacyPermissions: ["Location", "Camera", "Microphone"],
-                    urlScheme: "comgooglemaps://"),
-
-            // ===========================
             // LIFESTYLE
             // ===========================
-            AppInfo(id: UUID(), name: "Tinder: Dating & New Friends", bundleIdentifier: "com.cardify.tinder",
+            AppInfo(id: UUID(), name: "Tinder", bundleIdentifier: "com.cardify.tinder",
                     category: .lifestyle, appStoreRating: 3.5, totalReviews: 5_000_000,
                     lastUpdated: dateAgo(days: 5), sizeInMB: 240,
                     developerName: "Tinder Inc.", securityRisk: .safe, flagReasons: [],
@@ -892,7 +993,7 @@ final class AppAnalyzerService: ObservableObject {
                     hasInAppPurchases: true, privacyPermissions: ["Camera", "Photos", "Location", "Contacts"],
                     urlScheme: "tinder://"),
 
-            AppInfo(id: UUID(), name: "Bumble - Dating & Friends", bundleIdentifier: "com.mosaic.bumble",
+            AppInfo(id: UUID(), name: "Bumble", bundleIdentifier: "com.mosaic.bumble",
                     category: .lifestyle, appStoreRating: 4.1, totalReviews: 3_000_000,
                     lastUpdated: dateAgo(days: 6), sizeInMB: 200,
                     developerName: "Bumble Inc.", securityRisk: .safe, flagReasons: [],

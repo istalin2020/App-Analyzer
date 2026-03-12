@@ -24,10 +24,10 @@ final class AppAnalyzerViewModel: ObservableObject {
 
     // MARK: - Computed Properties
 
-    var filteredFlaggedApps: [AppInfo] {
-        var apps = analyzerService.flaggedApps
+    /// All installed apps after filtering/sorting (flagged + safe)
+    var filteredInstalledApps: [AppInfo] {
+        var apps = analyzerService.installedApps
 
-        // Apply search filter
         if !searchText.isEmpty {
             apps = apps.filter {
                 $0.name.localizedCaseInsensitiveContains(searchText) ||
@@ -36,12 +36,10 @@ final class AppAnalyzerViewModel: ObservableObject {
             }
         }
 
-        // Apply risk filter
         if let risk = filterRisk {
             apps = apps.filter { $0.securityRisk == risk }
         }
 
-        // Apply sort
         switch sortOption {
         case .riskLevel:
             apps.sort { $0.securityRisk > $1.securityRisk }
@@ -60,13 +58,24 @@ final class AppAnalyzerViewModel: ObservableObject {
         return apps
     }
 
+    /// Only flagged apps after filtering/sorting
+    var filteredFlaggedApps: [AppInfo] {
+        filteredInstalledApps.filter { $0.isFlagged }
+    }
+
     var groupedFlaggedApps: [(AppCategory, [AppInfo])] {
         let grouped = Dictionary(grouping: filteredFlaggedApps, by: \.category)
         return grouped.sorted { $0.value.count > $1.value.count }
     }
 
+    /// All installed apps grouped by category
+    var groupedAllApps: [(AppCategory, [AppInfo])] {
+        let grouped = Dictionary(grouping: filteredInstalledApps, by: \.category)
+        return grouped.sorted { $0.value.count > $1.value.count }
+    }
+
     var totalSelectedSize: Double {
-        analyzerService.flaggedApps
+        analyzerService.installedApps
             .filter { selectedAppsForDeletion.contains($0.id) }
             .reduce(0) { $0 + $1.sizeInMB }
     }
@@ -103,14 +112,14 @@ final class AppAnalyzerViewModel: ObservableObject {
     }
 
     func selectAllInCategory(_ category: AppCategory) {
-        let apps = analyzerService.flaggedApps.filter { $0.category == category }
+        let apps = analyzerService.installedApps.filter { $0.category == category }
         for app in apps {
             selectedAppsForDeletion.insert(app.id)
         }
     }
 
     func deselectAllInCategory(_ category: AppCategory) {
-        let apps = analyzerService.flaggedApps.filter { $0.category == category }
+        let apps = analyzerService.installedApps.filter { $0.category == category }
         for app in apps {
             selectedAppsForDeletion.remove(app.id)
         }
@@ -118,7 +127,7 @@ final class AppAnalyzerViewModel: ObservableObject {
 
     func deleteSelectedApps() {
         Task {
-            let appsToDelete = analyzerService.flaggedApps.filter {
+            let appsToDelete = analyzerService.installedApps.filter {
                 selectedAppsForDeletion.contains($0.id)
             }
             let count = await analyzerService.deleteApps(appsToDelete)
