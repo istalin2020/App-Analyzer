@@ -243,6 +243,8 @@ struct AppDetailView: View {
                 Divider()
                 DetailRow(label: "Days Since Update", value: "\(app.daysSinceUpdate) days")
                 Divider()
+                DetailRow(label: "Last Used", value: app.lastUsedDescription)
+                Divider()
                 DetailRow(label: "In-App Purchases", value: app.hasInAppPurchases ? "Yes" : "No")
                 Divider()
                 DetailRow(label: "System App", value: app.isSystemApp ? "Yes" : "No")
@@ -256,12 +258,20 @@ struct AppDetailView: View {
     // MARK: - Recommendation
 
     private var recommendationSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Image(systemName: app.securityRisk >= .high ? "exclamationmark.octagon.fill" : "lightbulb.fill")
-                    .foregroundStyle(app.securityRisk >= .high ? .red : .yellow)
+                Image(systemName: app.deletionRecommendation.icon)
+                    .foregroundStyle(app.deletionRecommendation.color)
                 Text("Recommendation")
                     .font(.headline)
+                Spacer()
+                Text(app.deletionRecommendation.rawValue)
+                    .font(.caption.bold())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(app.deletionRecommendation.color.opacity(0.12))
+                    .foregroundStyle(app.deletionRecommendation.color)
+                    .clipShape(Capsule())
             }
 
             Text(recommendationText)
@@ -271,7 +281,7 @@ struct AppDetailView: View {
         }
         .padding(16)
         .background(
-            (app.securityRisk >= .high ? Color.red : Color.yellow).opacity(0.05)
+            app.deletionRecommendation.color.opacity(0.05)
         )
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
@@ -351,6 +361,10 @@ struct AppDetailView: View {
             return "Developer appears to have stopped maintaining this app"
         case .knownVulnerabilities:
             return "Security researchers have identified vulnerabilities"
+        case .notUsedRecently:
+            return "Last used \(app.lastUsedDescription.lowercased())"
+        case .rarelyUsed:
+            return "This app is rarely opened — last used \(app.lastUsedDescription.lowercased())"
         }
     }
 

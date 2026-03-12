@@ -142,6 +142,20 @@ final class AppAnalyzerService: ObservableObject {
             // (done within the installed apps context)
         }
 
+        // --- 7. Usage Analysis ---
+        // Simulate last used date based on app attributes
+        let simulatedLastUsed = simulateLastUsedDate(for: app)
+        analyzed.lastUsedDate = simulatedLastUsed
+
+        if let lastUsed = simulatedLastUsed {
+            let daysSinceUsed = Calendar.current.dateComponents([.day], from: lastUsed, to: Date()).day ?? 0
+            if daysSinceUsed > 365 {
+                reasons.append(.notUsedRecently)
+            } else if daysSinceUsed > 180 {
+                reasons.append(.rarelyUsed)
+            }
+        }
+
         // Deduplicate reasons
         var seen = Set<String>()
         reasons = reasons.filter { seen.insert($0.rawValue).inserted }
@@ -151,7 +165,80 @@ final class AppAnalyzerService: ObservableObject {
         // --- Compute Security Risk Level ---
         analyzed.securityRisk = computeRiskLevel(reasons: reasons, app: app)
 
+        // --- Compute Deletion Recommendation ---
+        analyzed.deletionRecommendation = computeDeletionRecommendation(reasons: reasons, app: analyzed)
+
         return analyzed
+    }
+
+    /// Simulates a last-used date based on app popularity, rating, and update frequency
+    private func simulateLastUsedDate(for app: AppInfo) -> Date? {
+        let calendar = Calendar.current
+        let now = Date()
+
+        // System apps are always "recently used"
+        if app.isSystemApp {
+            return calendar.date(byAdding: .day, value: -Int.random(in: 0...3), to: now)
+        }
+
+        // High-popularity apps are used frequently
+        if app.popularityScore >= 80 {
+            return calendar.date(byAdding: .day, value: -Int.random(in: 0...14), to: now)
+        }
+
+        // Medium-popularity apps used occasionally
+        if app.popularityScore >= 50 {
+            return calendar.date(byAdding: .day, value: -Int.random(in: 7...90), to: now)
+        }
+
+        // Low-popularity + old update = likely unused
+        if app.popularityScore < 30 && app.daysSinceUpdate > 365 {
+            return calendar.date(byAdding: .day, value: -Int.random(in: 365...730), to: now)
+        }
+
+        // Low-popularity but recently updated
+        if app.popularityScore < 30 {
+            return calendar.date(byAdding: .day, value: -Int.random(in: 60...200), to: now)
+        }
+
+        // Default: moderate usage
+        return calendar.date(byAdding: .day, value: -Int.random(in: 14...120), to: now)
+    }
+
+    /// Computes a deletion recommendation based on flag reasons and app attributes
+    private func computeDeletionRecommendation(reasons: [FlagReason], app: AppInfo) -> DeletionRecommendation {
+        if reasons.isEmpty { return .keep }
+
+        var score = 0
+
+        for reason in reasons {
+            switch reason {
+            case .knownVulnerabilities: score += 4
+            case .securityConcerns: score += 3
+            case .abandonedByDeveloper: score += 3
+            case .notUsedRecently: score += 3
+            case .excessivePermissions: score += 2
+            case .poorRating: score += 2
+            case .negativeReviews: score += 2
+            case .noRecentUpdates: score += 1
+            case .rarelyUsed: score += 2
+            case .lowPopularity: score += 1
+            case .highStorageUsage: score += 1
+            case .duplicateApp: score += 2
+            }
+        }
+
+        // Unused + security issues = strongly recommend
+        if reasons.contains(.notUsedRecently) && app.securityRisk >= .medium {
+            score += 2
+        }
+
+        switch score {
+        case 0: return .keep
+        case 1...3: return .consider
+        case 4...6: return .suggested
+        default: return .stronglyRecommend
+        }
     }
 
     /// Computes an overall security risk level based on flag reasons and app attributes
@@ -172,6 +259,8 @@ final class AppAnalyzerService: ObservableObject {
             case .lowPopularity: score += 1
             case .highStorageUsage: score += 1
             case .duplicateApp: score += 1
+            case .notUsedRecently: score += 1
+            case .rarelyUsed: score += 1
             }
         }
 
@@ -229,6 +318,8 @@ final class AppAnalyzerService: ObservableObject {
                 flaggedApps: flaggedApps.count,
                 securityRisks: flaggedApps.filter { $0.securityRisk >= .medium }.count,
                 outdatedApps: flaggedApps.filter { $0.daysSinceUpdate > 365 }.count,
+                unusedApps: installedApps.filter { $0.flagReasons.contains(.notUsedRecently) || $0.flagReasons.contains(.rarelyUsed) }.count,
+                suggestedDeletions: installedApps.filter { $0.deletionRecommendation >= .suggested }.count,
                 potentialSpaceSaved: flaggedApps.reduce(0) { $0 + $1.sizeInMB },
                 categoryCounts: Dictionary(grouping: flaggedApps, by: \.category).mapValues(\.count)
             )
@@ -251,6 +342,8 @@ final class AppAnalyzerService: ObservableObject {
             flaggedApps: flagged.count,
             securityRisks: flagged.filter { $0.securityRisk >= .medium }.count,
             outdatedApps: flagged.filter { $0.daysSinceUpdate > 365 }.count,
+            unusedApps: allApps.filter { $0.flagReasons.contains(.notUsedRecently) || $0.flagReasons.contains(.rarelyUsed) }.count,
+            suggestedDeletions: allApps.filter { $0.deletionRecommendation >= .suggested }.count,
             potentialSpaceSaved: flagged.reduce(0) { $0 + $1.sizeInMB },
             categoryCounts: Dictionary(grouping: flagged, by: \.category).mapValues(\.count)
         )

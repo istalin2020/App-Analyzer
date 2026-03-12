@@ -109,6 +109,8 @@ struct ResultsView: View {
                 SummaryChip(value: "\(summary.flaggedApps)", label: "Flagged", icon: "exclamationmark.triangle.fill", color: .orange)
                 SummaryChip(value: "\(summary.securityRisks)", label: "Security Risks", icon: "shield.slash.fill", color: .red)
                 SummaryChip(value: "\(summary.outdatedApps)", label: "Outdated", icon: "clock.badge.exclamationmark", color: .yellow)
+                SummaryChip(value: "\(summary.unusedApps)", label: "Unused", icon: "hourglass.bottomhalf.filled", color: .indigo)
+                SummaryChip(value: "\(summary.suggestedDeletions)", label: "Delete", icon: "trash.circle.fill", color: .red)
                 SummaryChip(value: "\(summary.totalApps - summary.flaggedApps)", label: "Clean", icon: "checkmark.shield.fill", color: .green)
                 SummaryChip(value: summary.formattedSpaceSaved, label: "Can Free Up", icon: "externaldrive.fill", color: .purple)
             }

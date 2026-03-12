@@ -43,6 +43,8 @@ final class AppAnalyzerViewModel: ObservableObject {
         switch sortOption {
         case .riskLevel:
             apps.sort { $0.securityRisk > $1.securityRisk }
+        case .deletionRec:
+            apps.sort { $0.deletionRecommendation > $1.deletionRecommendation }
         case .appName:
             apps.sort { $0.name < $1.name }
         case .rating:
@@ -51,6 +53,12 @@ final class AppAnalyzerViewModel: ObservableObject {
             apps.sort { $0.sizeInMB > $1.sizeInMB }
         case .lastUpdated:
             apps.sort { $0.lastUpdated < $1.lastUpdated }
+        case .lastUsed:
+            apps.sort {
+                let a = $0.lastUsedDate ?? .distantPast
+                let b = $1.lastUsedDate ?? .distantPast
+                return a < b // Oldest first
+            }
         case .popularity:
             apps.sort { $0.popularityScore < $1.popularityScore }
         }
@@ -177,19 +185,23 @@ enum AppScreen {
 
 enum SortOption: String, CaseIterable {
     case riskLevel = "Risk Level"
+    case deletionRec = "Deletion Rec."
     case appName = "App Name"
     case rating = "Rating"
     case size = "Size"
     case lastUpdated = "Last Updated"
+    case lastUsed = "Last Used"
     case popularity = "Popularity"
 
     var icon: String {
         switch self {
         case .riskLevel: return "shield.fill"
+        case .deletionRec: return "trash.circle.fill"
         case .appName: return "textformat"
         case .rating: return "star.fill"
         case .size: return "externaldrive.fill"
         case .lastUpdated: return "clock.fill"
+        case .lastUsed: return "hourglass"
         case .popularity: return "person.3.fill"
         }
     }
