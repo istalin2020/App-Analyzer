@@ -134,6 +134,13 @@ struct CategorySelectionView: View {
 
             VStack(spacing: 0) {
                 ScanOptionToggle(
+                    icon: "gearshape.fill",
+                    title: "Include System Apps",
+                    isOn: $viewModel.preferences.includeSystemApps,
+                    color: .green
+                )
+                Divider().padding(.leading, 44)
+                ScanOptionToggle(
                     icon: "shield.fill",
                     title: "Check Security Risks",
                     isOn: $viewModel.preferences.checkSecurityRisks,
