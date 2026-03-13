@@ -47,6 +47,7 @@
     <false/>
     <key>LSApplicationQueriesSchemes</key>
     <array>
+        <!-- Social Media -->
         <string>instagram</string>
         <string>fb</string>
         <string>twitter</string>
@@ -57,14 +58,27 @@
         <string>reddit</string>
         <string>barcelona</string>
         <string>bereal</string>
+        <string>tumblr</string>
+        <string>mastodon</string>
+        <string>lemon8</string>
+        <string>nextdoor</string>
+        <string>truthsocial</string>
+        <!-- Communication -->
         <string>whatsapp</string>
-        <string>telegram</string>
+        <string>tg</string>
         <string>sgnl</string>
         <string>fb-messenger</string>
         <string>discord</string>
         <string>zoomus</string>
         <string>msteams</string>
         <string>skype</string>
+        <string>googlemeet</string>
+        <string>viber</string>
+        <string>line</string>
+        <string>weixin</string>
+        <string>kakaotalk</string>
+        <string>groupme</string>
+        <!-- Entertainment -->
         <string>youtube</string>
         <string>nflx</string>
         <string>disneyplus</string>
@@ -72,32 +86,246 @@
         <string>hulu</string>
         <string>hbomax</string>
         <string>twitch</string>
+        <string>peacocktv</string>
+        <string>paramountplus</string>
+        <string>crunchyroll</string>
+        <string>plex</string>
+        <string>tubi</string>
+        <string>roku</string>
+        <string>vlc</string>
+        <string>imdb</string>
+        <!-- Music -->
         <string>spotify</string>
         <string>youtubemusic</string>
         <string>soundcloud</string>
         <string>shazam</string>
+        <string>pandora</string>
+        <string>deezer</string>
+        <string>tidal</string>
+        <string>amznmp3</string>
+        <string>ihr</string>
+        <string>audible</string>
+        <!-- Shopping -->
         <string>amazon</string>
         <string>ebay</string>
         <string>walmart</string>
         <string>shein</string>
         <string>temu</string>
         <string>etsy</string>
+        <string>target</string>
+        <string>bestbuy</string>
+        <string>costco</string>
+        <string>nike</string>
+        <string>poshmark</string>
+        <string>mercari</string>
+        <string>wish</string>
+        <string>aliexpress</string>
+        <string>homedepot</string>
+        <string>wayfair</string>
+        <string>ikea-app</string>
+        <string>samsclub</string>
+        <!-- Food & Drink -->
         <string>doordash</string>
         <string>ubereats</string>
         <string>starbucks</string>
+        <string>mcd</string>
+        <string>grubhub</string>
+        <string>chickfila</string>
+        <string>chipotle</string>
+        <string>dominos</string>
+        <string>instacart</string>
+        <string>dunkin</string>
+        <string>pizzahut</string>
+        <string>tacobell</string>
+        <string>panerabread</string>
+        <string>wendys</string>
+        <string>burgerking</string>
+        <!-- Travel -->
         <string>uber</string>
         <string>lyft</string>
         <string>airbnb</string>
         <string>comgooglemaps</string>
         <string>waze</string>
+        <string>booking</string>
+        <string>expda</string>
+        <string>hopper</string>
+        <string>tripadvisor</string>
+        <string>hotels</string>
+        <string>kayak</string>
+        <string>deltaairlines</string>
+        <string>unitedairlines</string>
+        <string>southwest</string>
+        <string>flightradar24</string>
+        <string>citymapper</string>
+        <!-- Banking & Finance -->
         <string>paypal</string>
         <string>venmo</string>
         <string>cashme</string>
+        <string>robinhood</string>
+        <string>coinbase</string>
+        <string>zelle</string>
+        <string>chase</string>
+        <string>bofa</string>
+        <string>wellsfargo</string>
+        <string>capitalone</string>
+        <string>citi</string>
+        <string>discover</string>
+        <string>fidelity</string>
+        <string>mint</string>
+        <string>creditkarma</string>
+        <string>amex</string>
+        <string>crypto</string>
+        <string>webull</string>
+        <string>sofi</string>
+        <string>wise</string>
+        <!-- Productivity -->
         <string>googlegmail</string>
+        <string>googledrive</string>
         <string>ms-outlook</string>
         <string>notion</string>
         <string>slack</string>
+        <string>googledocs</string>
+        <string>ms-word</string>
+        <string>ms-excel</string>
+        <string>ms-powerpoint</string>
+        <string>onenote</string>
+        <string>googlesheets</string>
+        <string>googlecalendar</string>
+        <string>trello</string>
+        <string>todoist</string>
+        <string>evernote</string>
+        <string>dbapi-1</string>
+        <string>canva</string>
+        <string>goodnotes5</string>
+        <string>acrobat</string>
+        <string>onedrive</string>
+        <!-- Games -->
+        <string>robloxmobile</string>
+        <string>candycrushsaga</string>
+        <string>subwaysurfers</string>
+        <string>amongus</string>
+        <string>codmobile</string>
+        <string>pubgmobile</string>
+        <string>minecraft</string>
+        <string>clashofclans</string>
+        <string>clashroyale</string>
+        <string>yuanshengame</string>
+        <string>brawlstars</string>
+        <string>pokemongo</string>
+        <string>monopolygo</string>
+        <string>royalmatch</string>
+        <string>8ballpool</string>
+        <string>nytgames</string>
+        <string>geometrydash</string>
+        <string>templerun2</string>
+        <!-- Photography -->
+        <string>vsco</string>
+        <string>snapseed</string>
+        <string>adobelightroom</string>
+        <string>picsart</string>
+        <string>snow</string>
+        <string>beautyplus</string>
+        <string>halide</string>
+        <string>procamera</string>
+        <string>lensa</string>
+        <string>photoroom</string>
+        <!-- Health & Fitness -->
+        <string>myfitnesspal</string>
+        <string>nikerunclub</string>
+        <string>strava</string>
+        <string>fitbit</string>
+        <string>peloton</string>
+        <string>calm</string>
+        <string>headspace</string>
+        <string>noom</string>
+        <string>flo</string>
+        <string>sleepcycle</string>
+        <string>loseit</string>
+        <string>waterminder</string>
+        <!-- Education -->
+        <string>duolingo</string>
+        <string>quizlet</string>
+        <string>canvas-student</string>
+        <string>khanacademy</string>
+        <string>coursera</string>
+        <string>photomath</string>
+        <string>chegg</string>
+        <string>babbel</string>
+        <string>kahoot</string>
+        <string>udemy</string>
+        <!-- News -->
+        <string>googlenews</string>
+        <string>flipboard</string>
+        <string>cnn</string>
+        <string>foxnews</string>
+        <string>nytimes</string>
+        <string>washpost</string>
+        <string>bbc</string>
+        <string>reuters</string>
+        <string>apnews</string>
+        <string>smartnews</string>
+        <!-- Sports -->
+        <string>espn</string>
+        <string>gametime</string>
+        <string>nfl</string>
+        <string>mlbatbat</string>
+        <string>yahoosports</string>
+        <string>cbssports</string>
+        <string>thescore</string>
+        <string>fanduel</string>
+        <string>draftkings</string>
+        <string>nhl</string>
+        <!-- Weather -->
+        <string>twcweather</string>
+        <string>accuweather</string>
+        <string>carrotweather</string>
+        <string>wunderground</string>
+        <string>weatherbug</string>
+        <string>radarscope</string>
+        <!-- Utilities -->
         <string>googlechrome</string>
+        <string>googleapp</string>
+        <string>googletranslate</string>
+        <string>onepassword</string>
+        <string>firefox</string>
+        <string>brave</string>
+        <string>ddgQuickLink</string>
+        <string>nordvpn</string>
+        <string>expressvpn</string>
+        <string>lastpass</string>
+        <string>bitwarden</string>
+        <string>speedtest</string>
+        <string>widgetsmith</string>
+        <string>adguard</string>
+        <string>msauth</string>
+        <string>googleauthenticator</string>
+        <!-- Lifestyle -->
+        <string>tinder</string>
+        <string>bumble</string>
+        <string>hinge</string>
+        <string>okcupid</string>
+        <string>zillowapp</string>
+        <string>realtorcom</string>
+        <string>yelp</string>
+        <string>taskrabbit</string>
+        <string>grindr</string>
+        <string>goodreads</string>
+        <string>asos</string>
+        <string>nextdoorapp</string>
+        <!-- Business -->
+        <string>indeed</string>
+        <string>glassdoor</string>
+        <string>ziprecruiter</string>
+        <string>handshake</string>
+        <string>upwork</string>
+        <string>hubspot</string>
+        <string>salesforce</string>
+        <string>fiverr</string>
+        <!-- Navigation -->
+        <string>citymapper-widget</string>
+        <string>transit</string>
+        <string>moovit</string>
+        <string>alltrails</string>
     </array>
 </dict>
 </plist>
